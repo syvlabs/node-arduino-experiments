@@ -15,5 +15,8 @@
   "bugs": {
     "url": "https://github.com/syvlabs/node-arduino-experiments/issues"
   },
-  "homepage": "https://github.com/syvlabs/node-arduino-experiments#readme"
+  "homepage": "https://github.com/syvlabs/node-arduino-experiments#readme",
+  "dependencies": {
+    "serialport": "^2.0.1"
+  }
 }
