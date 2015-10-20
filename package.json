@@ -17,6 +17,8 @@
   },
   "homepage": "https://github.com/syvlabs/node-arduino-experiments#readme",
   "dependencies": {
+    "http-proxy-agent": "^1.0.0",
+    "request": "^2.65.0",
     "serialport": "^2.0.1"
   }
 }
