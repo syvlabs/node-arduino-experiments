@@ -4,7 +4,9 @@
   "description": "",
   "main": "index.js",
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "start": "forever start -o ./forever/out.log -l %userprofile%/Documents/node-arduino-experiments/forever/forever.log forever/run.json",
+    "stop": "forever stop alcd",
+    "test": "node index.js"
   },
   "repository": {
     "type": "git",
@@ -18,6 +20,7 @@
   "homepage": "https://github.com/syvlabs/node-arduino-experiments#readme",
   "dependencies": {
     "http-proxy-agent": "^1.0.0",
+    "jsonfile": "^2.2.3",
     "request": "^2.65.0",
     "serialport": "^2.0.1"
   }

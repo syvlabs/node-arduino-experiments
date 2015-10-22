@@ -1,61 +1,122 @@
 var ArduinoLCD = require("./arduinolcd.js").ArduinoLCD;
+var request = require('request');
+var moment = require('moment');
+var unirest = require('unirest');
+
+var proxy = 'http://10.40.36.5:8080';
+var forecast = {
+    data: null,
+    lastUpdate: null
+};
+
+var screenHeaderIdx = 0;
+
+const TICK_CGRAM = 4;
+
+console.log("SCRIPT IS STARTING: "+strTimeNow());
+
+var timeStart = moment();
 
 ArduinoLCD.init('COM6', function(){
-    ArduinoLCD.sendLine2("46989", true);
-    ArduinoLCD.sendLine2("28");
+    console.log(strTimeNow()+' Arduino detected.');
     createBarChars();
-    ArduinoLCD.sendLine1('Rain_  ', true);
-    ArduinoLCD.sendChar(4);
-    ArduinoLCD.sendLine1('9');
-    ArduinoLCD.sendChar(4);
-    ArduinoLCD.sendChar(4);
-    ArduinoLCD.sendLine1('A');
-    ArduinoLCD.sendChar(4);
-    ArduinoLCD.sendChar(4);
-    ArduinoLCD.sendLine1('3');
-    ArduinoLCD.sendChar(4);
-
-    ArduinoLCD.sendLine2('30%    ', true);
-    insertRainChar(10);
-    insertRainChar(30);
-    insertRainChar(40);
-    insertRainChar(50);
-    insertRainChar(60);
-    insertRainChar(70);
-    insertRainChar(80);
-    insertRainChar(90);
-    insertRainChar(100);
-
-    testGet();
+    getForecast(function(){
+        updateScreen();
+        setInterval(updateScreen, 5000);   //Update screen every 5 sec
+        setInterval(getForecast, 60000);   //Get new forecast every 1 min
+    });
 });
 
-function testGet() {
-    var HttpProxyAgent = require('http-proxy-agent');
-    var request = require('request');
-
-    var proxy = 'http://10.40.36.5:8080';
-    var agent = new HttpProxyAgent(proxy);
-
-    request({
-      uri: "http://api.wunderground.com/api/6f7e52b5ced6fbd0/hourly/q/zmw:00000.1.98430.json",
-      method: "GET",
-      agent: agent,
-      timeout: 10000,
-      followRedirect: true,
-      maxRedirects: 10
-    }, function(error, response, body) {
-        console.log("Error" + error);
-        console.log("Response: " + response);
-        console.log("Body: "+ body);
+function getForecast(callback) {
+    console.log(strTimeNow()+" Downloading forecast... ");
+    var Request = unirest.get("http://syvlabs.com/weather/upd.php?rand=" + Math.round(Math.random()*1000000));
+    Request.proxy(proxy);
+    Request.end(function (response){
+        console.log(strTimeNow()+" New forecast downloaded.");
+        if (typeof response.body == "string")
+            response.body = JSON.parse(response.body);
+        forecast.data = response.body;
+        forecast.lastUpdate = moment();
+        if (callback)
+            callback();
     });
 }
 
+function updateScreen() {
+    if (!forecast.data) {
+        console.log(strTimeNow() + " Update screen error: no forecast data");
+        return;
+    }
+    if (screenHeaderIdx%2 == 0) {
+        printLineHeader(1, 'Rain?');
+    } else if (screenHeaderIdx%2 == 1) {
+        printLineHeader(1, moment().format('HH:mm'));
+    }
+    var entryFrom = 0;
+    var found = false;
+    var hourly = forecast.data['hourly_forecast'];
+    var now = moment();
+    for (var i = 0; i < hourly.length; i++) {
+        var t = moment(Number(hourly[i].FCTTIME.epoch)*1000);
+        if (t >= now) {
+            found = true;
+            entryFrom = i;
+            break;
+        }
+    }
+    if (!found) {
+        console.log(strTimeNow() + " Forecast is outdated");
+        return;
+    }
+    var rainChars = [];
+    for (var i = 0; i < 9; i++) {
+        if (!hourly[entryFrom+i]) {
+            ArduinoLCD.sendLine1(' ');
+            rainChars.push(-1);
+        } else {
+            var hr = Number(hourly[entryFrom+i].FCTTIME.hour);
+            if (hr % 3 != 0) {
+                ArduinoLCD.sendChar(TICK_CGRAM);
+            } else if (hr == 0) {
+                ArduinoLCD.sendLine1('M');
+            } else if (hr == 12) {
+                ArduinoLCD.sendLine1('N');
+            } else {
+                ArduinoLCD.sendLine1((hr%12).toString());
+            }
+            rainChars.push(Number(hourly[entryFrom+i].pop));
+        }
+    }
+    var pctStr = ' '+rainChars[0]+'%';
+    while(pctStr.length < 7)
+        pctStr += ' ';
+    if (screenHeaderIdx%2 == 0) {
+        printLineHeader(2, pctStr);
+    } else if (screenHeaderIdx%2 == 1) {
+        printLineHeader(2, moment().format(' ddd').toUpperCase());
+    }
+    for (var i = 0; i < 9; i++) {
+        insertRainChar(rainChars[i]);
+    }
+    screenHeaderIdx++;
+}
+
+function printLineHeader(lineNum, str) {
+    while (str.length < 7)
+        str += ' ';
+    ArduinoLCD['sendLine'+lineNum](str, true);
+}
+
 function insertRainChar(pct) {
-    var level = Math.min(4, Math.max(0, Math.floor(pct/20.0)));
-    if (level == 4) {
-        ArduinoLCD.sendChar(255);
+    if (pct < 0) {
+        ArduinoLCD.sendChar(32);
     } else {
-        ArduinoLCD.sendChar(level);
+        var level = Math.min(4, Math.max(0, Math.floor(pct/20.0)));
+        if (level == 4) {
+            ArduinoLCD.sendChar(255);
+        } else {
+            ArduinoLCD.sendChar(level);
+        }
     }
 }
 
@@ -72,8 +133,16 @@ function createBarChars() {
         }
         ArduinoLCD.createChar(i, chars);
     }
-    ArduinoLCD.createChar(4, [
+    ArduinoLCD.createChar(TICK_CGRAM, [
         '.....', '.....', '.....', '..X..',
         '..X..', '.....', '.....', '.....'
     ]);
 }
+
+function strTimeNow() {
+    return moment().format('MM/DD/YY, h:mm:ss a');
+}
+
+process.on('uncaughtException', function (exception) {
+    console.log(exception);
+});

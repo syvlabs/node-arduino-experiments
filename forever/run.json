@@ -1,0 +1,7 @@
+{
+    "uid": "alcd",
+    "append": true,
+    "watch": true,
+    "script": "index.js",
+    "sourceDir": "./"
+}

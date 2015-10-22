@@ -8,15 +8,19 @@ ALCD.init = function(port, onInit) {
         parser: require("serialport").parsers.readline("\n")
     });
     ALCD.serialPort = serialPort;
-    serialPort.on("open", function () {
+    serialPort.on("open", function (error) {
+        if (error)
+            console.log("Open error "+error);
         serialPort.on('data', function(data) {
             if (data.trim() == "Ready") {
                 ALCD.send("0\n");
                 ALCD.send("0\n");
-                ALCD.send("3\n");
                 onInit();
             } else {
             }
+        });
+        serialPort.on('error', function(){
+            console.log("ERROR");
         });
     });
 };
@@ -28,9 +32,11 @@ ALCD.clear = function() {
 ALCD.send = function() {
     var args = [];
     for (var i = 0; i < arguments.length; ++i) {
+        //console.log(arguments.length, arguments[i]);
         ALCD.serialPort.write(arguments[i], function(err, res){
             if (err)
-                console.log("[ALCD] Error writing: ", err, "Results: ",res);
+                console.log("[ALCD] Error writing");
+            //console.log(res);
         });
     }
 };
